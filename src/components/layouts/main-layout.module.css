@@ -1,0 +1,36 @@
+/* src/layout/MainLayout.module.css */
+.container {
+    display: grid;
+    /* [사이드바 너비] [나머지 전체] */
+    grid-template-columns: var(--sidebar-width) 1fr;
+    /* [헤더 높이] [나머지 전체] */
+    grid-template-rows: var(--header-height) 1fr;
+    min-height: 100vh;
+}
+
+/* 헤더: 가로 전체(1번 라인부터 끝까지) 차지 */
+.header {
+    grid-column: 1 / -1;
+    background-color: #fff;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    z-index: 10;
+}
+
+/* 사이드바: 세로 2번째 줄부터 끝까지 차지 */
+.sidebar {
+    grid-row: 2 / -1;
+    background-color: #fff;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+}
+
+/* 메인 컨텐츠: 남은 공간 */
+.content {
+    grid-column: 2;
+    grid-row: 2;
+    padding: 24px;
+    overflow-y: auto;
+}
