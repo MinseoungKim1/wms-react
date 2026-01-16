@@ -1,7 +1,7 @@
 // src/components/layouts/MainLayout.tsx
 import { Outlet } from 'react-router-dom'; // ★중요: 자식 페이지가 들어올 구멍
 import Header from './sub-page/header';
-import Sidebar from './sub-page/sidebar';
+// import Sidebar from './sub-page/sidebar';
 
 export default function MainLayout() {
   return (

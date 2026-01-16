@@ -34,6 +34,13 @@ export default function Menu({onClose}: MenuProps) {
                 { name: "inbound material", path: "/material/inbound" },
                 { name: "outbound material", path: "/material/outbound" },
                 {name: "etc material" , path: "/material/ETC"},
+        ]
+      },
+        {
+            name: "Monitering", path: "/monitering", Children: [
+                { name: "Monitering", path: "/monitering/monitering" },
+                // { name: "outbound material", path: "/material/outbound" },
+                // {name: "etc material" , path: "/material/ETC"},
             ]},
     ];
     
