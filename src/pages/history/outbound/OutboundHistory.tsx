@@ -5,11 +5,9 @@ import { useState, useMemo } from 'react';
 import SearchForm from '../../../components/common/searchform';
 import CommonTable from '../../../components/common/commontable';
 // ★ 방금 만든 API 함수 import
-import { fetchCarrierList, CarrierSearchParams } from '../../../api/history/carrierApi';
 // 설정 데이터 import (Mock Data & Column Definitions)
 import { Outbound_Search_Fileds } from '../../../components/common/SearchMockData';
 import { OUTBOUND_TABLE_COLUMNS } from '../../../components/common/TableMockData';
-import axios from 'axios';
 
 // 1. 테이블에 보여줄 임시 데이터 (나중에 API로 대체될 부분)
 const mockTableData = [
@@ -74,7 +72,6 @@ export default function CarrierHistory() {
   // 검색 핸들러
   const handleSearch = (criteria: Record<string, any>) => {
     console.log('API 호출:', criteria);
-    axios.get 
     // 여기서 API를 호출하여 mockTableData 대신 실제 데이터를 받아오면 됩니다.
   };
 

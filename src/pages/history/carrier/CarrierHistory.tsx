@@ -9,6 +9,9 @@ import CommonTable from '../../../components/common/commontable';
 import { Carrier_Search_Fileds } from '../../../components/common/SearchMockData';
 import { CARRIER_TABLE_COLUMNS } from '../../../components/common/TableMockData';
 
+//API 사용시 사용할것
+import { fetchCarrierList, CarrierSearchParams } from '../../../api/history/carrierApi';
+
 // 1. 테이블에 보여줄 임시 데이터 (나중에 API로 대체될 부분)
 const mockTableData = [
   { id: 1, date: '2024-05-01', code: 'C-001', location: 'MX5', transport: 'AGV', status: 'Doing' },
@@ -21,6 +24,10 @@ const mockTableData = [
 export default function CarrierHistory() {
   // 2. 체크박스 선택된 ID들을 관리하는 상태
   const [selectedIds, setSelectedIds] = useState<any[]>([]);
+  // 2. 로딩 상태 (API 호출 중일 때 true)
+  const [isLoading, setTableData] = useState<boolean>(false);
+  // 2. 테이블 데이터 상태 (초기 값은 빈 배열)
+  const [tableData, setTableData] = useState<any[]>([]);
 
   // 3. ★ 핵심: 기본 컬럼(CARRIER_TABLE_COLUMNS)에 'status' 색상 로직(render)을 주입
   const tableColumns = useMemo(() => {
