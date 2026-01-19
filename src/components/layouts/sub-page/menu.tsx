@@ -38,7 +38,9 @@ export default function Menu({onClose}: MenuProps) {
       },
         {
             name: "Monitering", path: "/monitering", Children: [
-                { name: "Monitering", path: "/monitering/monitering" },
+              { name: "Monitering", path: "/monitering/monitering" },
+              { name: "NewMonitering", path: "/monitering/Newmonitering" },
+              { name: "FABMonitering", path: "/monitering/FABmonitering" },
                 // { name: "outbound material", path: "/material/outbound" },
                 // {name: "etc material" , path: "/material/ETC"},
             ]},

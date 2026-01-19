@@ -6,6 +6,8 @@ import CarrierHistory from '../pages/history/carrier/CarrierHistory';
 import InboundHistory from '../pages/history/inbound/InboundHistory';
 import OutboundHistory from '../pages/history/outbound/OutboundHistory';
 import Monitering from '../monitering/monitering'
+import NewMonitering from '../monitering/NewMonitering'
+import FABMonitering from '../monitering/FABMonitering'
 // 페이지가 아직 안 만들어졌을 때 보여줄 임시 컴포넌트 (테스트용)
 const Page = ({ title }: { title: string }) => (
   <div className="p-6">
@@ -66,7 +68,9 @@ export default function AppRoutes() {
         <Route path="/monitering">
             <Route index element={<Page title="Monitering 메인" />} />
             
-            <Route path="monitering" element={<Monitering/>} />
+          <Route path="monitering" element={<Monitering />} />
+          <Route path="Newmonitering" element={<NewMonitering />} />
+          <Route path="FABmonitering" element={<FABMonitering/>} />
             {/* <Route path="outbound" element={<Page title="Outbound Material" />} />
             <Route path="ETC" element={<Page title="ETC Material" />} /> */}
         </Route>

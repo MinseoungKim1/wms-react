@@ -1,447 +1,303 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+// src/views/monitoring/NewMonitoring.tsx
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import * as d3 from 'd3';
-import { Play, Pause, RotateCcw, Search, User, X, Filter } from 'lucide-react';
 
-// --- Constants & Configuration ---
-const ZONES = {
-  'A': { rows: 12, cols: 8, type: 'vertical-cluster', startX: 50, startY: 50 },
-  'B': { rows: 12, cols: 8, type: 'vertical-cluster', startX: 450, startY: 50 },
-  'C': { rows: 6, cols: 20, type: 'horizontal', startX: 50, startY: 600 }
-};
+// 모델 Import
+import { STATUS_COLORS, ZONE_COLORS } from './model/monitoring-model';
+import type { ViewModeType, MachineData } from './model/monitoring-model';
 
-interface Carrier {
-  id: string;
-  zone: string;
-  col: number;
-  row: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  maxLoad: number;
-  currentLoad: number;
-  percent: number;
-}
+// 컴포넌트 Import
+import MonitoringFilterPanel from './sub-page/MonitoringFilterPannel';
+import MonitoringDetailPanel from './sub-page/MonitoringDetailPannel';
 
-// Color scales mapping (Tailwind CSS matches)
-const COLORS = {
-  empty: '#334155',    // slate-700
-  low: '#06b6d4',      // cyan-500
-  normal: '#10b981',   // emerald-500
-  high: '#facc15',     // yellow-400
-  critical: '#f97316', // orange-500
-  full: '#dc2626',     // red-600
-  error: '#9333ea'     // purple-600
-};
+// ★ 서비스(API) Import
+import { fetchMonitoringData } from './model/api-model';
 
-const getStatusColor = (percent) => {
-  if (percent === 0) return COLORS.empty;
-  if (percent <= 25) return COLORS.low;
-  if (percent <= 50) return COLORS.normal;
-  if (percent <= 75) return COLORS.high;
-  if (percent <= 90) return COLORS.critical;
-  return COLORS.full;
-};
-
-const getStatusKey = (percent) => {
-  if (percent === 0) return 'empty';
-  if (percent <= 25) return 'low';
-  if (percent <= 50) return 'normal';
-  if (percent <= 75) return 'high';
-  if (percent <= 90) return 'critical';
-  return 'full';
-};
-
-// --- Helper Functions ---
-const generateInitialData = () => {
-  const data = [];
+const NewMonitoring: React.FC = () => {
+  const svgRef = useRef<SVGSVGElement | null>(null);
   
-  Object.entries(ZONES).forEach(([zoneId, config]) => {
-    for (let r = 0; r < config.rows; r++) {
-      for (let c = 0; c < config.cols; c++) {
-        const id = `${zoneId}-${c}-${r}`;
-        const maxLoad = 1000;
-        const currentLoad = Math.floor(Math.random() * 1001);
-        
-        // Calculate Position Logic based on Zone Type
-        let x = config.startX;
-        let y = config.startY;
-        let width = 24;
-        let height = 32;
+  // --- 상태 관리 ---
+  const [loading, setLoading] = useState<boolean>(true); // 로딩 상태 추가
+  const [rawData, setRawData] = useState<MachineData[]>([]);
+  const [filteredData, setFilteredData] = useState<MachineData[]>([]);
+  
+  // UI 컨트롤 상태
+  const [selectedZone, setSelectedZone] = useState<string>('ALL');
+  const [viewMode, setViewMode] = useState<ViewModeType>('STATUS');
+  const [selectedTarget, setSelectedTarget] = useState<MachineData | null>(null);
 
-        if (config.type === 'vertical-cluster') {
-          // Add gap every 2 columns for aisles
-          const aisleGap = Math.floor(c / 2) * 16;
-          x += (c * (width + 4)) + aisleGap;
-          y += r * (height + 4);
-        } else {
-          // Horizontal layout
-          width = 32;
-          height = 16;
-          x += c * (width + 4);
-          y += r * (height + 4);
-        }
+  // Zone 목록 생성
+  const zoneList = useMemo(() => {
+    const zones = new Set(rawData.map(d => d.zoneType));
+    return ['ALL', ...Array.from(zones).sort()];
+  }, [rawData]);
 
-        data.push({
-          id,
-          zone: zoneId,
-          col: c,
-          row: r,
-          x,
-          y,
-          width,
-          height,
-          maxLoad,
-          currentLoad,
-          percent: (currentLoad / maxLoad) * 100
-        });
-      }
-    }
-  });
-  return data;
-};
-
-// --- Main Component ---
-const WarehouseDashboard = () => {
-  // const [carriers, setCarriers] = useState([]);
-  // const [carriers, setCarriers] = useState<Carrier[]>([]); // <Carrier[]> 추가
-  const [carriers, setCarriers] = useState<Carrier[]>(() => generateInitialData());
-  const [isSimulating, setIsSimulating] = useState(false);
-  // const [selectedId, setSelectedId] = useState(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filterZone, setFilterZone] = useState('all');
-  const [zoomTransform, setZoomTransform] = useState({ k: 1, x: 0, y: 0 });
-  const [time, setTime] = useState(new Date());
-
-  const svgRef = useRef(null);
-  const simulationRef = useRef<number | null>(null);
-
-  // Initialize Data
+  // ----------------------------------------------------------------
+  // 1. 데이터 가져오기 (API 호출 시뮬레이션)
+  // ----------------------------------------------------------------
   useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true); // 로딩 시작
+        
+        // ★ 나중에 실제 API 연결 시 여기만 바꾸면 됩니다!
+        // 예: const res = await axios.get('/api/layout/status');
+        //     setRawData(res.data);
+        
+        const data = await fetchMonitoringData(); // 가상 API 호출
+        setRawData(data);
+      } catch (error) {
+        console.error("데이터 로드 실패:", error);
+      } finally {
+        setLoading(false); // 로딩 종료
+      }
+    };
+
+    loadData();
     
-    // Clock Timer
-    const timer = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timer);
+    // (선택) 30초마다 자동 새로고침 하려면 아래 주석 해제
+    // const interval = setInterval(loadData, 30000);
+    // return () => clearInterval(interval);
   }, []);
 
-  // D3 Zoom Setup
+  // ----------------------------------------------------------------
+  // 2. 필터링 로직
+  // ----------------------------------------------------------------
   useEffect(() => {
-    if (!svgRef.current) return;
+    if (selectedZone === 'ALL') {
+      setFilteredData(rawData);
+    } else {
+      setFilteredData(rawData.filter(d => d.zoneType === selectedZone));
+    }
+  }, [selectedZone, rawData]);
 
+  // ----------------------------------------------------------------
+  // 3. D3 렌더링 로직 (시각화)
+  // ----------------------------------------------------------------
+  useEffect(() => {
+    if (!svgRef.current || filteredData.length === 0) return;
+    
+    // --- SVG 초기화 ---
     const svg = d3.select(svgRef.current);
-    const zoom = d3.zoom()
-      .scaleExtent([0.1, 4])
-      .on('zoom', (event) => {
-        setZoomTransform(event.transform);
+    
+    // 줌(Zoom) 레이어 설정
+    let g = svg.select<SVGGElement>('g.content-layer');
+    if (g.empty()) {
+      g = svg.append('g').attr('class', 'content-layer');
+      
+      const zoom = d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.5, 5])
+        .on('zoom', (event) => g.attr('transform', event.transform));
+        
+      svg.call(zoom);
+    }
+
+    // --- (A) 구역 테두리 및 라벨 (Zone Boundaries & Labels) ---
+    const zoneGroups = d3.group(filteredData, d => d.zone);
+    const zoneBounds = Array.from(zoneGroups).map(([key, values]) => {
+      const minX = d3.min(values, d => d.x) || 0;
+      const minY = d3.min(values, d => d.y) || 0;
+      const maxX = d3.max(values, d => d.x + d.width) || 0;
+      const maxY = d3.max(values, d => d.y + d.height) || 0;
+      const type = values[0].zoneType;
+      
+      return { 
+        id: key, 
+        type,
+        x: minX - 3, 
+        y: minY - 3, 
+        width: (maxX - minX) + 6, 
+        height: (maxY - minY) + 6 
+      };
+    });
+
+    // 테두리 그리기
+    g.selectAll<SVGRectElement, any>('.zone-boundary')
+      .data(zoneBounds, d => d.id)
+      .join(
+        enter => enter.insert('rect', '.cell-rect')
+          .attr('class', 'zone-boundary')
+          .attr('rx', 2),
+        update => update,
+        exit => exit.remove()
+      )
+      .attr('x', d => d.x)
+      .attr('y', d => d.y)
+      .attr('width', d => d.width)
+      .attr('height', d => d.height)
+      .attr('fill', 'none')
+      .attr('stroke', d => ZONE_COLORS[d.type])
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', d => d.type === 'STAGING' ? '3 2' : 'none');
+
+    // 구역 이름(라벨) 표시
+    g.selectAll<SVGTextElement, any>('.zone-group-label')
+      .data(zoneBounds, d => d.id)
+      .join('text')
+      .attr('class', 'zone-group-label')
+      .attr('x', d => d.x + d.width / 2)
+      .attr('y', d => d.y - 5)
+      .text(d => d.type === 'STAGING' ? `Staging ${d.id.split('-')[1] || ''}` : d.id)
+      .attr('text-anchor', 'middle')
+      .attr('font-size', '10px')
+      .attr('font-weight', 'bold')
+      .attr('fill', d => ZONE_COLORS[d.type])
+      .style('pointer-events', 'none');
+
+    // --- (B) 셀(장비) 그리기 ---
+    g.selectAll<SVGRectElement, MachineData>('.cell-rect')
+      .data(filteredData, d => d.id)
+      .join(
+        enter => enter.append('rect')
+          .attr('class', 'cell-rect')
+          .attr('rx', 1)
+          .attr('stroke', '#333').attr('stroke-width', 0.5)
+          .style('cursor', 'pointer')
+          .on('click', (event, d) => {
+            // 클릭 시 선택된 데이터를 상태에 저장 -> 하단 패널로 전달됨
+            setSelectedTarget(d); 
+            
+            // 선택 효과 (테두리 진하게)
+            g.selectAll('.cell-rect').attr('stroke', '#333').attr('stroke-width', 0.5);
+            d3.select(event.currentTarget).attr('stroke', '#000').attr('stroke-width', 2);
+          }),
+        update => update,
+        exit => exit.transition().duration(200).style('opacity', 0).remove()
+      )
+      .attr('x', d => d.x).attr('y', d => d.y)
+      .attr('width', d => d.width).attr('height', d => d.height)
+      .transition().duration(500)
+      .attr('fill', d => {
+        if (viewMode === 'CAPACITY') {
+          return d3.interpolateCool(d.currentLoad / d.maxCapacity);
+        }
+        // Status 모드일 때
+        if (d.zoneType === 'STAGING') return '#fff3e0'; 
+        return STATUS_COLORS[d.status];
       });
 
-    svg.call(zoom);
-  }, []);
+    // --- (C) 셀 내부 텍스트 (ID & %) ---
+    g.selectAll<SVGTextElement, MachineData>('.cell-label')
+      .data(filteredData, d => d.id)
+      .join(
+        enter => enter.append('text')
+          .attr('class', 'cell-label')
+          .attr('text-anchor', 'middle')
+          .style('pointer-events', 'none')
+          .style('font-size', '6px')
+          .style('font-weight', 'bold'),
+        update => update,
+        exit => exit.remove()
+      )
+      .attr('x', d => d.x + d.width / 2)
+      .attr('y', d => d.y + d.height / 2)
+      .each(function(d) {
+        const textEl = d3.select(this);
+        textEl.text(null);
+        
+        // ID 축약 로직 (A-01-0-1 -> 0-1)
+        const idParts = d.id.split('-');
+        const shortID = idParts.length >= 3 
+          ? `${idParts[idParts.length-2]}-${idParts[idParts.length-1]}` 
+          : d.id;
 
-  // Simulation Logic
-  useEffect(() => {
-    if (isSimulating) {
-      simulationRef.current = setInterval(() => {
-        setCarriers(prev => {
-          // Clone array for immutability
-          const next = [...prev];
-          // Update 10 random items
-          for (let i = 0; i < 15; i++) {
-            const idx = Math.floor(Math.random() * next.length);
-            const item = { ...next[idx] };
-            const change = (Math.random() * 0.4) - 0.2; // +/- 20%
-            let newLoad = item.currentLoad + (item.maxLoad * change);
-            newLoad = Math.max(0, Math.min(newLoad, item.maxLoad));
-            
-            item.currentLoad = Math.floor(newLoad);
-            item.percent = (item.currentLoad / item.maxLoad) * 100;
-            next[idx] = item;
-          }
-          return next;
-        });
-      }, 1000);
-  } else {
-    if (simulationRef.current) {
-      clearInterval(simulationRef.current);
-    }
-  }
+        if (viewMode === 'STATUS') {
+          textEl.append('tspan')
+            .attr('dy', '0.35em').attr('x', d.x + d.width / 2)
+            .text(shortID);
+        } else {
+          textEl.append('tspan')
+            .attr('dy', '-0.2em').attr('x', d.x + d.width / 2)
+            .text(shortID);
+          textEl.append('tspan')
+            .attr('dy', '1.0em').attr('x', d.x + d.width / 2)
+            .style('font-size', '5px')
+            .text(`${d.currentLoad}%`);
+        }
+        
+        // 텍스트 색상 결정 (배경이 어두우면 흰색, 밝으면 검은색)
+        const isDarkBack = (viewMode === 'CAPACITY') || (viewMode === 'STATUS' && d.zoneType !== 'STAGING');
+        textEl.style('fill', isDarkBack ? 'white' : 'black');
+        if (isDarkBack) textEl.style('text-shadow', '1px 1px 1px rgba(0,0,0,0.5)');
+        else textEl.style('text-shadow', 'none');
+      });
 
-  return () => {
-    if (simulationRef.current) {
-      clearInterval(simulationRef.current);
-    }
-  };
-}, [isSimulating]);
-
-  const handleReset = () => {
-    setIsSimulating(false);
-    setCarriers(prev => prev.map(c => ({ ...c, currentLoad: 0, percent: 0 })));
-  };
-
-  const selectedCarrier = useMemo(() => 
-    carriers.find(c => c.id === selectedId), 
-  [carriers, selectedId]);
-
-  // Stats Calculation
-  const stats = useMemo(() => {
-    const total = carriers.length;
-    const totalLoad = carriers.reduce((a, b) => a + b.currentLoad, 0);
-    const totalMax = carriers.reduce((a, b) => a + b.maxLoad, 0);
-    const utilization = totalMax ? ((totalLoad / totalMax) * 100).toFixed(1) : 0;
-    const critical = carriers.filter(c => c.percent > 90).length;
-    return { total, utilization, critical };
-  }, [carriers]);
+  }, [filteredData, viewMode]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-900 text-slate-200 font-sans overflow-hidden">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', fontFamily: 'sans-serif' }}>
       
-      {/* --- Header --- */}
-      <header className="h-16 bg-slate-900 border-b border-slate-700 flex items-center justify-between px-6 shrink-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="bg-blue-600 p-2 rounded-lg">
-            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">WMS Carrier Monitor</h1>
-            <p className="text-xs text-slate-400">React + D3 Real-time System</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <div className="hidden md:flex relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-            <input type="text" placeholder="Find Carrier ID..." className="bg-slate-800 border border-slate-700 rounded-full py-1.5 pl-9 pr-4 text-sm focus:outline-none focus:border-blue-500 text-slate-200 w-64" />
-          </div>
-
-          <div className="flex gap-4 text-sm text-right">
-            <div>
-              <div className="text-slate-400 text-xs">System Status</div>
-              <div className="text-emerald-400 font-medium flex items-center justify-end gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Online
-              </div>
-            </div>
-            <div>
-              <div className="text-slate-400 text-xs">Time</div>
-              <div className="text-white font-mono">{time.toLocaleTimeString('en-US', { hour12: false })}</div>
-            </div>
-          </div>
-          
-          <button className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center hover:bg-slate-600">
-            <User className="w-4 h-4" />
-          </button>
-        </div>
-      </header>
-
-      <div className="flex flex-1 overflow-hidden">
+      {/* 1. 상단: 필터 패널 */}
+      <MonitoringFilterPanel 
+        zones={zoneList}
+        selectedZone={selectedZone}
+        onZoneChange={setSelectedZone}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+      />
+      
+      {/* 2. 중단: D3 모니터링 영역 */}
+      <div style={{ flex: '1 1 60%', position: 'relative', backgroundColor: '#fff', overflow: 'hidden' }}>
         
-        {/* --- Sidebar --- */}
-        <aside className="w-72 bg-slate-900 border-r border-slate-700 flex flex-col shrink-0 z-10">
-          <div className="p-6 border-b border-slate-800">
-            <h2 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">Dashboard Metrics</h2>
-            
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                <div className="text-slate-400 text-xs mb-1">Total Slots</div>
-                <div className="text-2xl font-bold text-white">{stats.total}</div>
-              </div>
-              <div className="bg-slate-800 p-3 rounded-lg border border-slate-700">
-                <div className="text-slate-400 text-xs mb-1">Utilization</div>
-                <div className="text-2xl font-bold text-blue-400">{stats.utilization}%</div>
-              </div>
-            </div>
-
-            <div className="bg-slate-800 rounded-lg p-3 border border-slate-700 mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-slate-400">Alerts</span>
-                <span className="bg-red-500/20 text-red-400 text-xs px-2 py-0.5 rounded-full">{stats.critical} Critical</span>
-              </div>
-              <div className="h-1.5 w-full bg-slate-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-red-500 transition-all duration-500" 
-                  style={{ width: `${Math.min((stats.critical / stats.total) * 500, 100)}%` }}
-                ></div>
-              </div>
-            </div>
+        {/* 로딩 표시 (데이터 가져오는 중일 때) */}
+        {loading && (
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            zIndex: 10, backgroundColor: 'rgba(255,255,255,0.8)', padding: '20px', borderRadius: '8px',
+            boxShadow: '0 0 10px rgba(0,0,0,0.1)', fontWeight: 'bold'
+          }}>
+            데이터 불러오는 중...
           </div>
+        )}
+        
+        <svg ref={svgRef} width="100%" height="100%" style={{ display: 'block' }} />
+        
+        {/* 범례 (Legend) */}
+        <div style={{
+          position: 'absolute', bottom: 20, right: 20,
+          background: 'rgba(255, 255, 255, 0.95)',
+          padding: '15px', borderRadius: '8px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          border: '1px solid #ddd',
+          fontSize: '12px'
+        }}>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', borderBottom: '1px solid #eee', paddingBottom: '5px' }}>
+            {viewMode === 'STATUS' ? '상태 범례 (Status)' : '적재율 범례 (Capacity)'}
+          </h4>
 
-          <div className="p-6 flex-1 overflow-y-auto">
-            <h2 className="text-xs font-bold text-slate-400 mb-4 uppercase tracking-wider">Capacity Legend</h2>
-            <div className="space-y-3 text-sm">
-              {[
-                { label: 'Empty (0%)', color: COLORS.empty },
-                { label: 'Low (1-25%)', color: COLORS.low },
-                { label: 'Normal (26-50%)', color: COLORS.normal },
-                { label: 'High (51-75%)', color: COLORS.high },
-                { label: 'Critical (76-90%)', color: COLORS.critical },
-                { label: 'Full (91-100%)', color: COLORS.full },
-              ].map((item) => (
-                <div key={item.label} className="flex items-center gap-3">
-                  <div className="w-4 h-4 rounded" style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}66` }}></div>
-                  <span className="text-slate-300">{item.label}</span>
+          {viewMode === 'STATUS' ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              {Object.entries(STATUS_COLORS).map(([key, color]) => (
+                <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <div style={{ width: 14, height: 14, backgroundColor: color, borderRadius: '2px' }}></div>
+                  <span>{key}</span>
                 </div>
               ))}
-            </div>
-
-            <div className="mt-8">
-              <h2 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Simulation</h2>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setIsSimulating(!isSimulating)}
-                  className={`flex-1 text-white text-sm py-2 px-3 rounded-md transition-colors flex items-center justify-center gap-2 ${isSimulating ? 'bg-red-600 hover:bg-red-500' : 'bg-blue-600 hover:bg-blue-500'}`}
-                >
-                  {isSimulating ? <><Pause size={16} /> Stop</> : <><Play size={16} /> Run</>}
-                </button>
-                <button 
-                  onClick={handleReset}
-                  className="bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm py-2 px-3 rounded-md transition-colors"
-                >
-                  <RotateCcw size={16} />
-                </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ width: 14, height: 14, backgroundColor: '#fff3e0', border: '1px solid #fd7e14', borderStyle: 'dashed', borderRadius: '2px' }}></div>
+                <span>대기 구역</span>
               </div>
             </div>
-          </div>
-        </aside>
-
-        {/* --- Main Map Area (D3 + SVG) --- */}
-        <main className="flex-1 bg-slate-950 relative overflow-hidden flex flex-col">
-          
-          {/* Filters */}
-          <div className="absolute top-4 left-4 z-10 flex gap-2">
-            {['all', 'A', 'B', 'C'].map(zone => (
-              <button
-                key={zone}
-                onClick={() => setFilterZone(zone)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors backdrop-blur-md border ${
-                  filterZone === zone 
-                    ? 'bg-blue-600 text-white border-blue-500' 
-                    : 'bg-slate-800/70 text-slate-300 border-white/5 hover:bg-slate-700'
-                }`}
-              >
-                {zone === 'all' ? 'All Zones' : `Zone ${zone}`}
-              </button>
-            ))}
-          </div>
-
-          {/* D3 Canvas */}
-          <div className="w-full h-full cursor-grab active:cursor-grabbing overflow-hidden">
-            <svg ref={svgRef} className="w-full h-full">
-              <g transform={`translate(${zoomTransform.x}, ${zoomTransform.y}) scale(${zoomTransform.k})`}>
-                
-                {/* Background Map Container */}
-                <rect x="0" y="0" width="1200" height="900" rx="20" fill="#0f172a" stroke="#1e293b" strokeWidth="2" />
-                
-                {/* Zone Labels */}
-                <text x="50" y="40" fill="#64748b" fontSize="14" fontWeight="bold" letterSpacing="2">ZONE A</text>
-                <text x="450" y="40" fill="#64748b" fontSize="14" fontWeight="bold" letterSpacing="2">ZONE B</text>
-                <text x="50" y="580" fill="#64748b" fontSize="14" fontWeight="bold" letterSpacing="2">ZONE C (Bulk)</text>
-
-                {/* Carriers Render */}
-                {carriers.map((carrier) => {
-                  const isFiltered = filterZone === 'all' || carrier.zone === filterZone;
-                  const isSelected = selectedId === carrier.id;
-                  
-                  return (
-                    <g 
-                      key={carrier.id} 
-                      transform={`translate(${carrier.x}, ${carrier.y})`}
-                      onClick={(e) => { e.stopPropagation(); setSelectedId(carrier.id); }}
-                      style={{ 
-                        opacity: isFiltered ? 1 : 0.1, 
-                        pointerEvents: isFiltered ? 'all' : 'none',
-                        transition: 'opacity 0.3s'
-                      }}
-                      className="cursor-pointer hover:brightness-125"
-                    >
-                      <rect
-                        width={carrier.width}
-                        height={carrier.height}
-                        rx="2"
-                        fill={getStatusColor(carrier.percent)}
-                        stroke={isSelected ? '#fff' : 'rgba(0,0,0,0.2)'}
-                        strokeWidth={isSelected ? 2 : 1}
-                        style={{
-                          filter: `drop-shadow(0 0 4px ${getStatusColor(carrier.percent)}40)`
-                        }}
-                      />
-                    </g>
-                  );
-                })}
-              </g>
-            </svg>
-          </div>
-
-          {/* Floating Detail Panel */}
-          {selectedCarrier && (
-            <div className="absolute top-4 right-4 w-80 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-30 animate-in slide-in-from-right duration-300">
-              <div className="p-4 border-b border-white/10 flex justify-between items-start">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <span className="w-2 h-6 bg-blue-500 rounded-sm"></span>
-                    Carrier {selectedCarrier.id}
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-1">Status: Active</p>
-                </div>
-                <button onClick={() => setSelectedId(null)} className="text-slate-400 hover:text-white">
-                  <X size={20} />
-                </button>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', fontSize: '10px' }}>
+                <span>0% (비어있음)</span>
+                <span>100% (가득참)</span>
               </div>
-              <div className="p-4">
-                <div className="flex justify-between items-end mb-2">
-                  <span className="text-sm text-slate-300">Load Capacity</span>
-                  <span className="text-2xl font-bold" style={{ color: getStatusColor(selectedCarrier.percent) }}>
-                    {Math.round(selectedCarrier.percent)}%
-                  </span>
-                </div>
-                <div className="w-full bg-slate-700 rounded-full h-2 mb-6">
-                  <div 
-                    className="h-full rounded-full transition-all duration-300" 
-                    style={{ 
-                      width: `${selectedCarrier.percent}%`,
-                      backgroundColor: getStatusColor(selectedCarrier.percent)
-                    }}
-                  ></div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  <div className="bg-slate-800/50 p-2 rounded border border-white/5">
-                    <div className="text-[10px] text-slate-500 uppercase">Current Load</div>
-                    <div className="text-sm font-semibold text-slate-200">{selectedCarrier.currentLoad} kg</div>
-                  </div>
-                  <div className="bg-slate-800/50 p-2 rounded border border-white/5">
-                    <div className="text-[10px] text-slate-500 uppercase">Max Load</div>
-                    <div className="text-sm font-semibold text-slate-200">{selectedCarrier.maxLoad} kg</div>
-                  </div>
-                </div>
-
-                <h4 className="text-xs font-semibold text-slate-400 uppercase mb-2">Details</h4>
-                <div className="text-xs text-slate-300 space-y-2">
-                  <div className="flex justify-between border-b border-white/5 pb-1">
-                    <span>Zone Location</span>
-                    <span className="text-slate-500">Zone {selectedCarrier.zone}</span>
-                  </div>
-                   <div className="flex justify-between border-b border-white/5 pb-1">
-                    <span>Coordinates</span>
-                    <span className="text-slate-500">X: {selectedCarrier.col}, Y: {selectedCarrier.row}</span>
-                  </div>
-                </div>
-              </div>
+              <div style={{ 
+                width: '180px', height: '12px', 
+                background: 'linear-gradient(to right, #ffffff, #00ffff, #ff00ff)',
+                borderRadius: '6px', marginBottom: '10px'
+              }}></div>
             </div>
           )}
-
-          {/* Toast / Notification Area */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none">
-             {filterZone !== 'all' && (
-               <div className="bg-slate-800 border border-slate-600 text-white px-4 py-2 rounded-lg shadow-xl flex items-center gap-3 animate-bounce">
-                  <Filter size={16} className="text-emerald-400" />
-                  <span className="text-sm font-bold">Filtered: Zone {filterZone}</span>
-               </div>
-             )}
-          </div>
-
-        </main>
+        </div>
       </div>
+
+      {/* 3. 하단: 상세 정보 패널 (선택된 데이터 전달) */}
+      <MonitoringDetailPanel data={selectedTarget} />
     </div>
   );
 };
 
-export default WarehouseDashboard;
+export default NewMonitoring;
