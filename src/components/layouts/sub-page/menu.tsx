@@ -31,7 +31,7 @@ export default function Menu({onClose}: MenuProps) {
             ]},
         {
             name: "Material", path: "/material", Children: [
-                { name: "inbound material", path: "/material/inbound" },
+                { name: "적재율 모니터링", path: "/material/monitoring" },
                 { name: "outbound material", path: "/material/outbound" },
                 {name: "etc material" , path: "/material/ETC"},
         ]

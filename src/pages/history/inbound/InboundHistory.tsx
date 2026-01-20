@@ -5,43 +5,38 @@ import { useState, useMemo } from 'react';
 import SearchForm from '../../../components/common/searchform';
 import CommonTable from '../../../components/common/commontable';
 
-// 설정 데이터 import (Mock Data & Column Definitions)
+// 설정 데이터 import
 import { Inbound_Search_Fileds } from '../../../components/common/SearchMockData';
 import { INBOUND_TABLE_COLUMNS } from '../../../components/common/TableMockData';
 
-// 1. 테이블에 보여줄 임시 데이터 (나중에 API로 대체될 부분)
-const mockTableData = [
+// 1. 초기 임시 데이터 (나중에 API로 대체될 부분)
+const initialMockData = [
   { id: 1, date: '2025-05-01', inboundCode: 'A-001', POCode: 'X012302', supplier: 'supplier', status: '예정' },
   { id: 2, date: '2025-05-02', inboundCode: 'B-002', POCode: 'X012301', supplier: 'client', status: '부분입고' },
   { id: 3, date: '2025-05-03', inboundCode: 'C-003', POCode: 'X012311', supplier: 'client', status: '완료' },
   { id: 4, date: '2025-05-04', inboundCode: 'F-004', POCode: 'X012342', supplier: 'supplier', status: '취소' },
   { id: 5, date: '2025-05-05', inboundCode: 'Z-005', POCode: 'X012312', supplier: 'client', status: '완료' },
-  { id: 6, date: '2025-05-09', inboundCode: 'C-003', POCode: 'X012311', supplier: 'client', status: '완료' },
-  { id: 7, date: '2025-05-11', inboundCode: 'F-004', POCode: 'X012342', supplier: 'supplier', status: '취소' },
-  { id: 8, date: '2025-05-13', inboundCode: 'Z-005', POCode: 'X012312', supplier: 'client', status: '완료' },
-  { id: 9, date: '2025-05-19', inboundCode: 'C-003', POCode: 'X012311', supplier: 'client', status: '완료' },
-  { id: 10, date: '2025-05-21', inboundCode: 'F-004', POCode: 'X012342', supplier: 'supplier', status: '취소' },
-  { id: 11, date: '2025-05-30', inboundCode: 'Z-005', POCode: 'X012312', supplier: 'client', status: '완료' },
 ];
 
 export default function CarrierHistory() {
-  // 2. 체크박스 선택된 ID들을 관리하는 상태
+  // 2. 테이블 데이터 상태 관리 (행 추가를 위해 state로 변경)
+  const [tableData, setTableData] = useState<any[]>(initialMockData);
+  
+  // 3. 체크박스 선택된 ID들을 관리하는 상태
   const [selectedIds, setSelectedIds] = useState<any[]>([]);
 
-  // 3. ★ 핵심: 기본 컬럼(CARRIER_TABLE_COLUMNS)에 'status' 색상 로직(render)을 주입
+  // 4. 컬럼 정의 + 커스텀 렌더링
   const tableColumns = useMemo(() => {
     return INBOUND_TABLE_COLUMNS.map((col) => {
-      // 'status' 컬럼을 찾아서 커스텀 렌더링 함수를 추가합니다.
       if (col.key === 'status') {
         return {
           ...col,
           render: (value: string) => {
-            // 이 화면만의 색상 규칙
-            let colorClass = 'bg-gray-100 text-gray-600'; // 기본 (Pending 등)
+            let colorClass = 'bg-gray-100 text-gray-600'; 
             
             if (value === '예정') colorClass = 'bg-blue-100 text-blue-700';
             else if (value === '부분 입고' || value === '부분입고') colorClass = 'bg-green-100 text-green-700';
-            else if (value === '취소' || value === '취소') colorClass = 'bg-red-100 text-red-700';
+            else if (value === '취소') colorClass = 'bg-red-100 text-red-700';
 
             return (
               <span className={`px-2 py-1 rounded text-xs font-bold ${colorClass}`}>
@@ -51,7 +46,6 @@ export default function CarrierHistory() {
           },
         };
       }
-      // 다른 컬럼은 건드리지 않고 그대로 반환
       return col;
     });
   }, []);
@@ -59,29 +53,48 @@ export default function CarrierHistory() {
   // 검색 핸들러
   const handleSearch = (criteria: Record<string, any>) => {
     console.log('API 호출:', criteria);
-    // 여기서 API를 호출하여 mockTableData 대신 실제 데이터를 받아오면 됩니다.
+    // 실제로는 여기서 setTableData(apiResponse) 등으로 데이터를 교체합니다.
+  };
+
+  // ★ [추가] 행 추가 핸들러
+  const handleAddRow = (newRow: any) => {
+    console.log('새로운 행 추가:', newRow);
+    
+    // 필수 데이터가 비어있을 경우 기본값 채우기 등의 로직을 넣을 수 있습니다.
+    // 예: 날짜가 없으면 오늘 날짜로 설정
+    const rowToAdd = {
+      ...newRow,
+      date: newRow.date || new Date().toISOString().split('T')[0],
+      status: newRow.status || '예정' // 기본 상태값
+    };
+
+    setTableData((prev) => [rowToAdd, ...prev]); // 맨 앞에 추가
   };
 
   return (
     <div className="p-6">
-      {/* 타이틀 스타일을 조금 더 일반적인 색상으로 변경했습니다 (text-red-500 -> text-gray-800) */}
       <h2 className="text-2xl font-bold mb-6 text-gray-800">Inbound History</h2>
 
-      {/* 4. 검색 폼 */}
+      {/* 검색 폼 */}
       <SearchForm 
         fields={Inbound_Search_Fileds} 
         onSearch={handleSearch} 
       />
 
-      {/* 5. 테이블 영역 */}
-      {/* 기존의 border-dashed placeholder는 제거하고 깔끔한 마진(mt-6)만 줍니다 */}
+      {/* 테이블 영역 */}
       <div className="mt-6">
          <CommonTable 
-           columns={tableColumns}     // 위에서 만든(render가 주입된) 컬럼 사용
-           data={mockTableData}       // 데이터 연결
-           selectedIds={selectedIds}  // 선택 상태 연결
-           onSelectionChange={setSelectedIds} // 선택 핸들러 연결
-           onRowClick={(row) => console.log('클릭된 행:', row)} // (선택사항) 행 클릭 시 동작
+           columns={tableColumns}
+           data={tableData}             // state로 관리되는 데이터 전달
+           selectedIds={selectedIds}
+           onSelectionChange={setSelectedIds}
+           onRowClick={(row) => console.log('클릭된 행:', row)}
+           
+           // ★ [추가] 기능 활성화
+           enableAdd={true}             // 추가 버튼 보이기
+           onAddRow={handleAddRow}      // 추가 로직 연결
+           enableExport={true}          // 엑셀 버튼 보이기
+           exportFileName="입고내역_2025" // 엑셀 파일명 설정
          />
       </div>
     </div>

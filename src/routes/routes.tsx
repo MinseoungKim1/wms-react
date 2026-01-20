@@ -60,7 +60,7 @@ export default function AppRoutes() {
         <Route path="/material">
             <Route index element={<Page title="Material 메인" />} />
             
-            <Route path="inbound" element={<Page title="Inbound Material" />} />
+            <Route path="monitoring" element={<Page title="Inbound Material" />} />
             <Route path="outbound" element={<Page title="Outbound Material" />} />
             <Route path="ETC" element={<Page title="ETC Material" />} />
         </Route>
@@ -74,7 +74,6 @@ export default function AppRoutes() {
             {/* <Route path="outbound" element={<Page title="Outbound Material" />} />
             <Route path="ETC" element={<Page title="ETC Material" />} /> */}
         </Route>
-
       </Route>
     </Routes>
   );
