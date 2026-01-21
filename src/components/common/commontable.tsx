@@ -24,11 +24,16 @@ interface CommonTableProps<T> {
   useSearch?: boolean;         
   searchPlaceholder?: string;  
 
-  // ★ [추가] 행 추가 및 엑셀 관련 Props
-  onAddRow?: (newRow: T) => void; // 부모에게 추가된 데이터를 전달하는 콜백
-  enableAdd?: boolean;            // 추가 버튼 활성화 여부
-  enableExport?: boolean;         // 엑셀 내보내기 활성화 여부
-  exportFileName?: string;        // 엑셀 파일명
+  // 행 추가/삭제 및 엑셀 관련 Props
+  onAddRow?: (newRow: T) => void;
+  enableAdd?: boolean;
+  
+  // ★ [추가] 삭제 관련 Props
+  onDeleteRows?: (ids: (string | number)[]) => void; // 삭제 핸들러 (선택된 ID 배열 전달)
+  enableDelete?: boolean;                            // 삭제 버튼 활성화 여부
+
+  enableExport?: boolean;
+  exportFileName?: string;
 }
 
 // T는 반드시 id 속성을 가져야 함
@@ -41,9 +46,14 @@ export default function CommonTable<T extends { id: string | number }>({
   onSelectionChange,
   useSearch = true,
   searchPlaceholder = "검색어를 입력하세요...",
-  // 추가된 Props 기본값
+  
   onAddRow,
   enableAdd = true,
+  
+  // ★ [추가] 삭제 관련 기본값
+  onDeleteRows,
+  enableDelete = true,
+
   enableExport = true,
   exportFileName = "table_export",
 }: CommonTableProps<T>) {
@@ -87,21 +97,15 @@ export default function CommonTable<T extends { id: string | number }>({
     }
   };
 
-  // --- ★ [추가] 엑셀 내보내기 로직 ---
+  // --- 엑셀 내보내기 로직 ---
   const handleExport = () => {
-    // 1. 현재 필터링된 데이터를 엑셀 시트로 변환
-    // (render 함수가 있는 경우 제외하고 원본 데이터 값만 추출하거나, 필요시 가공 로직 추가 가능)
     const worksheet = XLSX.utils.json_to_sheet(filteredData);
-    
-    // 2. 워크북 생성
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-    
-    // 3. 파일 다운로드
     XLSX.writeFile(workbook, `${exportFileName}.xlsx`);
   };
 
-  // --- ★ [추가] 행 추가 모달 로직 ---
+  // --- 행 추가 모달 로직 ---
   const handleOpenModal = () => {
     setNewRowData({}); // 초기화
     setIsModalOpen(true);
@@ -113,24 +117,29 @@ export default function CommonTable<T extends { id: string | number }>({
 
   const handleSaveRow = () => {
     if (!onAddRow) return;
-
-    // ID가 없다면 임시 랜덤 ID 생성 (실제로는 백엔드에서 처리하거나 입력받아야 함)
     const newId = newRowData['id'] || Date.now().toString();
-    
-    const rowToSave = {
-      id: newId,
-      ...newRowData
-    } as T;
-
+    const rowToSave = { id: newId, ...newRowData } as T;
     onAddRow(rowToSave); // 부모 컴포넌트에 데이터 전달
     setIsModalOpen(false); // 모달 닫기
+  };
+
+  // ★ [추가] 삭제 핸들러
+  const handleDelete = () => {
+    if (!onDeleteRows || selectedIds.length === 0) return;
+    
+    // 삭제 전 확인 (선택 사항 - UX 향상)
+    if (window.confirm(`${selectedIds.length}건을 삭제하시겠습니까?`)) {
+      onDeleteRows(selectedIds);
+      // 삭제 후 선택 초기화 (중요: 삭제된 ID가 selectedIds에 남지 않도록)
+      if (onSelectionChange) onSelectionChange([]);
+    }
   };
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden relative">
       
       {/* 1. 상단 툴바 (검색창 + 액션 버튼) */}
-      {(useSearch || enableAdd || enableExport) && (
+      {(useSearch || enableAdd || enableExport || enableDelete) && (
         <div className="p-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-center gap-4">
           
           {/* 좌측: 검색창 */}
@@ -165,6 +174,25 @@ export default function CommonTable<T extends { id: string | number }>({
               </button>
             )}
             
+            {/* ★ [추가] 삭제 버튼 (Add Row 옆에 배치) */}
+            {enableDelete && (
+              <button 
+                onClick={handleDelete}
+                // 선택된 항목이 없으면 비활성화 (disabled 스타일 적용)
+                disabled={selectedIds.length === 0}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg focus:ring-4 transition-all
+                  ${selectedIds.length > 0 
+                    ? 'bg-red-600 hover:bg-red-700 focus:ring-red-300' 
+                    : 'bg-red-300 cursor-not-allowed'
+                  }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete ({selectedIds.length})
+              </button>
+            )}
+
             {enableAdd && (
               <button 
                 onClick={handleOpenModal}
@@ -266,7 +294,7 @@ export default function CommonTable<T extends { id: string | number }>({
          </span>
       </div>
 
-      {/* ★ [추가] 행 추가 모달 (간단 구현) */}
+      {/* 행 추가 모달 */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-6 m-4">
@@ -274,7 +302,6 @@ export default function CommonTable<T extends { id: string | number }>({
             
             <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
               {columns.map((col) => (
-                // id나 자동 생성되는 값은 제외하고 싶다면 여기서 조건문 추가
                 <div key={col.key}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {col.label}
